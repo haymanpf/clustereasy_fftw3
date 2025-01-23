@@ -1,0 +1,3 @@
+# ClusterEasy_FFTW3
+
+This is a simple port of [ClusterEasy](https://www.felderbooks.com/latticeeasy/index.html) from FFTW2 to FFTW3. 
