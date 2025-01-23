@@ -9,7 +9,7 @@ const float lambda=9.e-14; // Self-coupling of inflaton
 const float gl=200; // Resonance parameter g^2/lambda
 
 // Adjustable run parameters
-#define NDIMS 2
+#define NDIMS 3
 const int N = 64; // Number of points along each edge of the cubical lattice
 const int nflds = 2;  //Number of fields
 const float L = 20.; // Size of box (i.e. length of each edge) in rescaled distance units

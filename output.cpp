@@ -171,10 +171,10 @@ void spectra()
 #elif NDIMS==3
   for(fld=0;fld<nfldsout;fld++)
   {
-    forward_plans_f[fld]  = fftwf_mpi_plan_dft_r2c_3d(N, N, N, &(f[fld][1][0]), (fftwf_complex *)&(f[fld][1][0]), MPI_COMM_WORLD, FFTW_ESTIMATE);   // PH
-    forward_plans_fd[fld] = fftwf_mpi_plan_dft_r2c_3d(N, N, N, &(fd[fld][1][0]), (fftwf_complex *)&(fd[fld][1][0]), MPI_COMM_WORLD, FFTW_ESTIMATE); // PH
-    inverse_plans_f[fld]  = fftwf_mpi_plan_dft_c2r_3d(N, N, N, (fftwf_complex *)&(f[fld][1][0]), &(f[fld][1][0]), MPI_COMM_WORLD, FFTW_ESTIMATE);   // PH
-    inverse_plans_fd[fld] = fftwf_mpi_plan_dft_c2r_3d(N, N, N, (fftwf_complex *)&(fd[fld][1][0]), &(fd[fld][1][0]), MPI_COMM_WORLD, FFTW_ESTIMATE);   // PH
+    forward_plans_f[fld]  = fftwf_mpi_plan_dft_r2c_3d(N, N, N, &(f[fld][1][0][0]), (fftwf_complex *)&(f[fld][1][0][0]), MPI_COMM_WORLD, FFTW_ESTIMATE);   // PH
+    forward_plans_fd[fld] = fftwf_mpi_plan_dft_r2c_3d(N, N, N, &(fd[fld][1][0][0]), (fftwf_complex *)&(fd[fld][1][0][0]), MPI_COMM_WORLD, FFTW_ESTIMATE); // PH
+    inverse_plans_f[fld]  = fftwf_mpi_plan_dft_c2r_3d(N, N, N, (fftwf_complex *)&(f[fld][1][0][0]), &(f[fld][1][0][0]), MPI_COMM_WORLD, FFTW_ESTIMATE);   // PH
+    inverse_plans_fd[fld] = fftwf_mpi_plan_dft_c2r_3d(N, N, N, (fftwf_complex *)&(fd[fld][1][0][0]), &(fd[fld][1][0][0]), MPI_COMM_WORLD, FFTW_ESTIMATE);   // PH
   }
 #endif
 
@@ -412,7 +412,7 @@ void spectra()
     } // End of loop over i
     // Transform field values back to position space
     fftwf_execute(inverse_plans_f[fld]);  // PH
-    fftwf_execute(inverse_forward_plans_fd[fld]); // PH
+    fftwf_execute(inverse_plans_fd[fld]); // PH
 #endif
 #if NDIMS>1
     LOOP // rescale by total number of points since FFTW does not do this.

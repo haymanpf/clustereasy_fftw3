@@ -1,4 +1,4 @@
-COMPILER = mpiCC
+COMPILER = mpic++
 FLAGS = -O3 -I${MCKENZIE_FFTW_INC_PATH} -L${MCKENZIE_FFTW_LIB_PATH}
 %FLAGS = -O3 -I${MCKENZIE_FFTW_INC_PATH} -L${MCKENZIE_FFTW_LIB_PATH} -cxxlib-icc
 all: latticeeasy.h model.h parameters.h latticeeasy.o evolution.o initialize.o output.o mpiutil.o ffteasy.o

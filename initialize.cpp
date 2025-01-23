@@ -179,8 +179,8 @@ void initialize()
   int px,py,pz; // Components of momentum in units of grid spacing
   float (*fnyquist)[2*N],(*fdnyquist)[2*N]; // Used for modes with k=nyquist. These are calculated on the root processor but then they are sent to the other processors for the FFT.
   MPI_Datatype skipped_array; // A new MPI datatype for passing complex elements at placed at regular intervals in an array. This is used for passing the Nyquist frequencies.
-  fftwf_mpi_plan plans_f[nflds]; // Plan for calculating FFT // PH
-  fftwf_mpi_plan plans_fd[nflds]; // Plan for calculating FFT // PH
+  fftwf_plan plans_f[nflds]; // Plan for calculating FFT // PH
+  fftwf_plan plans_fd[nflds]; // Plan for calculating FFT // PH
   ptrdiff_t local_nx, local_i_start, total_local_size; // Parameters of the local lattice given by FFTW // PH
   int *all_n; // Array for storing the value of n at all processors. The root processor needs to know this to distribute information correctly
   int tag; // Used for MPI messages
@@ -193,8 +193,8 @@ void initialize()
 
   for(fld=0;fld<nflds;fld++) // Initialize the plans for each field. Note the docs say this is roughly as fast as setting a single plan since all parameters are the same. // PH 
   {
-    plans_f[fld]  = fftwf_mpi_plan_dft_c2r_3d(N, N, N, (fftwf_complex *)&(f[fld][1][0]), &(f[fld][1][0]), MPI_COMM_WORLD, FFTW_ESTIMATE);
-    plans_fd[fld] = fftwf_mpi_plan_dft_c2r_3d(N, N, N, (fftwf_complex *)&(fd[fld][1][0]), &(fd[fld][1][0]), MPI_COMM_WORLD, FFTW_ESTIMATE);
+    plans_f[fld]  = fftwf_mpi_plan_dft_c2r_3d(N, N, N, (fftwf_complex *)&(f[fld][1][0][0]), &(f[fld][1][0][0]), MPI_COMM_WORLD, FFTW_ESTIMATE);
+    plans_fd[fld] = fftwf_mpi_plan_dft_c2r_3d(N, N, N, (fftwf_complex *)&(fd[fld][1][0][0]), &(fd[fld][1][0][0]), MPI_COMM_WORLD, FFTW_ESTIMATE);
   }
 
   if(my_rank==0) // Cast the arrays for storing the Nyquist arrays at the root processor and get the sizes of all local grids for distributing those modes.
