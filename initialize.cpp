@@ -7,7 +7,6 @@ MPI version: The initialize() function also calls the function that casts the fi
 */
 
 #include "latticeeasy.h"
-#include <iostream>
 
 // Generate a uniform deviate between 0 and 1 using the Park-Miller minimum standard algorithm
 #define randa 16807
