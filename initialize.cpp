@@ -7,6 +7,7 @@ MPI version: The initialize() function also calls the function that casts the fi
 */
 
 #include "latticeeasy.h"
+#include <iostream>
 
 // Generate a uniform deviate between 0 and 1 using the Park-Miller minimum standard algorithm
 #define randa 16807
@@ -182,6 +183,7 @@ void initialize()
   fftwf_plan plans_f[nflds]; // Plan for calculating FFT // PH
   fftwf_plan plans_fd[nflds]; // Plan for calculating FFT // PH
   ptrdiff_t local_nx, local_i_start, total_local_size; // Parameters of the local lattice given by FFTW // PH
+  int array_size; // Total size of the local field array (per field) // PH
   int *all_n; // Array for storing the value of n at all processors. The root processor needs to know this to distribute information correctly
   int tag; // Used for MPI messages
 
@@ -189,7 +191,8 @@ void initialize()
   total_local_size *= 2.; // PH --- FFTW3 calculates complex N instead of real. This is a change from FFTW2.
   n=local_nx; // Set the global variable n to the correct value for this grid's processor
   my_start_position = local_i_start; // Set the global variable my_start_position for this processor
-  cast_field_arrays((n+2)*N*(N+2)); // Cast the field arrays
+  array_size = ( (n+2)*N*(N+2) > total_local_size+2*N*(N+2) ? (n+2)*N*(N+2) : total_local_size+2*N*(N+2) ); // See the documentation for details on the needed array size --- This is needed in 3D now as well for FFTW3 // PH
+  cast_field_arrays(array_size); // Cast the field arrays // PH
 
   for(fld=0;fld<nflds;fld++) // Initialize the plans for each field. Note the docs say this is roughly as fast as setting a single plan since all parameters are the same. // PH 
   {
@@ -586,7 +589,6 @@ void initialize()
 
   // Clean up dynamically allocated arrays and FFTW plans
 #if NDIMS>1
-  // rfftwnd_mpi_destroy_plan(plan);
   for(fld=0;fld<nflds;fld++) // PH --- Have to destroy all the plans now.
   {
     fftwf_destroy_plan(plans_f[fld]);
