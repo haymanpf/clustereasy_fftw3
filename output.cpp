@@ -779,13 +779,14 @@ void histograms_2d()
 // Note that if slicedim=NDIMS in the MPI version then the sliceaverage parameter will be ignored.
 inline void slices()
 {
-  static FILE *slices_[nflds],*slicetimes_;
+  static FILE *slices_[nflds],*slicesp_[nflds],*slicetimes_;
   static int adjusted_slicedim=slicedim; // Number of dimensions to include on slice
   static int final=(slicelength-1)*sliceskip; // This gives the last value that will be included in the slice. (Note that the serial version calculates a point beyond that and then uses i<final, but this way is easier for finding the last processor that will be needed for a given slice.)
   int fld,i=0,j=0,k=0;
   int x=0,y=0,z=0; // A separate set of array indices is needed for averaging
   int numpts; // Used for keeping track of how many points are being averaged in each output
   float value; // Field value to be output
+  float valuep; // LSR -- Field derivative value to be output
   // MPI parameters
   int proc=my_rank;
   static int max_rank=my_rank; // Highest-rank process needed for output of slices
@@ -813,6 +814,8 @@ inline void slices()
       {
 	sprintf(name_,"slices%d%s",fld,ext_);
 	slices_[fld]=fopen(name_,mode_);
+	sprintf(name_,"slicesp%d%s",fld,ext_); // AX
+	slicesp_[fld]=fopen(name_,mode_); // AX
       }
       sprintf(name_,"slicetimes%s",ext_);
       slicetimes_=fopen(name_,mode_);
@@ -847,14 +850,14 @@ inline void slices()
   
   if(adjusted_slicedim==NDIMS && max_rank>0) // In this case multiple processors are needed. Note that in this case the sliceaverage parameter is ignored
   {
-    for(fld=0;fld<nfldsout;fld++)
+    for(fld=0;fld<2*nfldsout;fld++) // AX -- loops over first the fields and then the field derivatives
     {
 #if NDIMS==1
-      fpoint = &(f[fld][istart]);
+      fpoint = (fld<nflds ? &(f[fld][1]) : &(fd[fld-nflds][1])); // AX, LSR -- for both fields and field derivatives, taken from checkpoint()
 #elif NDIMS==2
-      fpoint = &(f[fld][istart][0]);
+      fpoint = (fld<nflds ? &(f[fld][1][0]) : &(fd[fld-nflds][1][0])); // AX, LSR
 #elif NDIMS==3
-      fpoint = &(f[fld][istart][0][0]);
+      fpoint = (fld<nflds ? &(f[fld][1][0][0]) : &(fd[fld-nflds][1][0][0])); // AX
 #endif
       if(my_rank>0 && my_rank<=max_rank) // All processors above rank 0 should send their data to the root processor
 	MPI_Send((void *)fpoint,local_gridsize,MPI_FLOAT,0,my_rank+fld*max_rank,MPI_COMM_WORLD);
@@ -873,22 +876,45 @@ inline void slices()
 #if NDIMS==1
 	  maximum_i = proc_gridsize;
 	  for(i=0;i<maximum_i;i+=sliceskip)
-	    fprintf(slices_[fld],"%e\n",fpoint[i]*rescaling);
+	    {
+	      if (fld<nfldsout)
+	        fprintf(slices_[fld],"%e\n",fpoint[i]*rescaling);
+	      else
+	        fprintf(slicesp_[fld-nfldsout],"%e\n",fpoint[i]*rescaling); // LSR -- Only appears when fld > nfldsout, so we remove nfldsout from fld to get the equivalent field derivatives
+	    }
 #elif NDIMS==2
 	  maximum_i = proc_gridsize/(N+2);
 	  for(i=0;i<maximum_i;i+=sliceskip)
 	    for(j=0;j<=final;j+=sliceskip)
-	      fprintf(slices_[fld],"%e\n",fpoint[j+i*(N+2)]*rescaling);
+	      {
+	        if (fld<nfldsout)
+	          fprintf(slices_[fld],"%e\n",fpoint[j+i*(N+2)]*rescaling);
+	        else
+	          fprintf(slicesp_[fld-nfldsout],"%e\n",fpoint[j+i*(N+2)]*rescaling); // LSR
+	      }
 #elif NDIMS==3
 	  maximum_i = proc_gridsize/N/(N+2);
 	  for(i=0;i<maximum_i;i+=sliceskip)
 	    for(j=0;j<=final;j+=sliceskip)
 	      for(k=0;k<=final;k+=sliceskip)
-		fprintf(slices_[fld],"%e\n",fpoint[k+j*(N+2)+i*N*(N+2)]*rescaling);
+		{
+          	  if (fld<nfldsout)
+            	    fprintf(slices_[fld],"%e\n",fpoint[k+j*(N+2)+i*N*(N+2)]*rescaling); // AX -- Save field value
+          	  else
+            	    fprintf(slicesp_[fld-nfldsout],"%e\n",fpoint[k+j*(N+2)+i*N*(N+2)]*rescaling); // AX -- Save field derivative values
+        	}
 #endif
 	} // End of loop over procs
-	fprintf(slices_[fld], "\n");
-	fflush(slices_[fld]);
+	if (fld<nfldsout)
+	  {
+	    fprintf(slices_[fld], "\n");
+	    fflush(slices_[fld]);
+	  }
+	else
+	  {
+	    fprintf(slicesp_[fld-nfldsout],"\n"); // AX
+            fflush(slicesp_[fld-nfldsout]); // AX
+	  }
       } // End of if(my_rank==0)
     } // End of loop over fields
   } // End of case where more than one processor is needed
@@ -903,30 +929,41 @@ inline void slices()
 	  if(sliceaverage==1) // Average over all "skipped" points
 	  {
 	    value=0.;
+	    valuep=0.; // LSR -- Field derivative value
 	    numpts=0;
 	    for(z=k;z<k+sliceskip && z<N;z++)
 	    {
 #if NDIMS==1
 	      if(z>=n) continue; // Make sure you don't go beyond the end of the points stored on this lattice. This situation should only occur if numprocs>1 but final is set low enough that only the first processor is needed, and sliceskip>1 and slice averaging is turned on. In that case this might result in one point in the slice having a different value in the serial and parallel versions because a different number of points will have been averaged.
 	      value += f[fld][z+1]; // The +1 adjusts for the offset in the first dimension
+	      valuep += fd[fld][z+1]; // LSR
 #elif NDIMS==2
 	      value += f[fld][1][z];
+	      valuep += fd[fld][1][z]; // LSR
 #elif NDIMS==3
 	      value += f[fld][1][0][z];
+	      value += fd[fld][1][0][z]; // LSR
 #endif
 	      numpts++;
 	    }
-	    if(numpts>0) value /= (float)numpts;
+	    if(numpts>0) 
+	    {
+	      value /= (float)numpts;
+	      valuep /= (float)numpts;
+	    }
 	    else printf("Division by zero attempted in slices routine at point k=%d\n",k);
 	  }
 	  else // ...or just output field values at the sampled points
 	  {
 #if NDIMS==1
 	    value = f[fld][k+1]; // The +1 adjusts for the offset in the first dimension
+	    valuep = f[fld][k+1]; // LSR
 #elif NDIMS==2
 	    value = f[fld][1][k];
+	    valuep = f[fld][1][k]; // LSR
 #elif NDIMS==3
 	    value = f[fld][1][0][k];
+	    valuep = f[fld][1][0][k]; // LSR
 #endif
 	  }
 	  fprintf(slices_[fld],"%e\n",value*rescaling);
@@ -940,30 +977,40 @@ inline void slices()
 	    if(sliceaverage==1) // Average over all "skipped" points
 	    {
 	      value=0.;
+	      valuep=0.;
 	      numpts=0;
 	      for(y=j;y<j+sliceskip && y<N;y++)
 		for(z=k;z<k+sliceskip && z<N;z++)
 		{
 #if NDIMS==2
 		  if(y>=n) continue; // Don't go beyond the local lattice. See comments above
-		  value += f[fld][y+1][z]; // The +1 adjusts for the offset in the first dimension
+		  valuep += fd[fld][y+1][z]; // The +1 adjusts for the offset in the first dimension
+		  valuep += fd[fld][y+1][z]; // LSR
 #elif NDIMS==3
 		  value += f[fld][1][y][z];
+		  valuep += fd[fld][1][y][z]; // LSR
 #endif
 		  numpts++;
 		}
-	      if(numpts>0) value /= (float)numpts;
+	      if(numpts>0) 
+	      {
+	        value /= (float)numpts;
+	        valuep /= (float)numpts; // LSR
+	      }
 	      else printf("Division by zero attempted in slices routine at point j=%d, k=%d\n",j,k);
 	    }
 	    else // ...or just output field values at the sampled points
 	    {
 #if NDIMS==2
 	      value = f[fld][j+1][k]; // The +1 adjusts for the offset in the first dimension
+	      value = f[fld][j+1][k]; // LSR
 #elif NDIMS==3
 	      value = f[fld][1][j][k];
+	      valuep = fd[fld][1][j][k]; // LSR
 #endif
 	    }
 	    fprintf(slices_[fld],"%e\n",value*rescaling);
+	    fprintf(slicesp_[fld],"%e\n",valuep*rescaling); // LSR
 	  }
       } // End of if(adjusted_slicedim==2)
       else if(adjusted_slicedim==3)
@@ -975,6 +1022,7 @@ inline void slices()
 	      if(sliceaverage==1) // Average over all "skipped" points
 	      {
 		value=0.;
+		valuep=0.; // LSR
 		numpts=0;
 		for(x=i;x<i+sliceskip && x<n;x++)
 		  for(y=j;y<j+sliceskip && y<N;y++)
@@ -982,21 +1030,30 @@ inline void slices()
 		    {
 #if NDIMS==3 // This code should only be reached when NDIMS=3, but the compiler would complain without this line
 		      value += f[fld][x+1][y][z]; // The +1 adjusts for the offset in the first dimension
+		      valuep += fd[fld][x+1][y][z]; // LSR
 #endif
 		      numpts++;
 		    }
-		if(numpts>0) value /= (float)numpts;
+		if(numpts>0) 
+		{
+		  value /= (float)numpts;
+		  valuep /= (float)numpts;
+		}
 		else printf("Division by zero attempted in slices routine at point i=%d, j=%d, k=%d\n",i,j,k);
 	      }
 	      else // ...or just output field values at the sampled points
 #if NDIMS==3 // This code should only be reached when NDIMS=3, but the compiler would complain without this line
 		value = f[fld][i+1][j][k]; // The +1 adjusts for the offset in the first dimension
+		valuep = fd[fld][i+1][j][k]; // LSR
 #endif
 	      fprintf(slices_[fld],"%e\n",value*rescaling);
+	      fprintf(slicesp_[fld],"%e\n",valuep*rescaling); // AX, LSR
 	    }
       } // End of if(adjusted_slicedim==3)
       fprintf(slices_[fld],"\n");
       fflush(slices_[fld]);
+      fprintf(slicesp_[fld],"\n"); // AX
+      fflush(slicesp_[fld]); // AX
     } // End of loop over fields
   } // End of case where slices are entirely at root processor
   
