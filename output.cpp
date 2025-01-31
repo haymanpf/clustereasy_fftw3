@@ -774,19 +774,51 @@ void histograms_2d()
   }
 }
 
+// Increments a grid location accounting for periodic wrapping
+inline int INCREMENT(int i)
+{
+  return( (i==N-1) ? 0 : i+1 );
+}
+
+// Decrements a grid location accounting for periodic wrapping
+inline int DECREMENT(int i)
+{
+  return( (i==0) ? N-1 : i-1 );
+}
+inline float laplb(int fld, INDEXLIST) // LSR -- originally inline float
+{
+#if NDIMS==1
+  return (f[fld][i+1] + f[fld][i-1] - 2.*f[fld][i]);
+#elif NDIMS==2
+  return (f[fld][i][INCREMENT(j)] + f[fld][i][DECREMENT(j)]
+         +f[fld][i+1][j] + f[fld][i-1][j]
+         -4.*f[fld][i][j]);
+#elif NDIMS==3
+  return (f[fld][i][j][INCREMENT(k)] + f[fld][i][j][DECREMENT(k)]
+         +f[fld][i][INCREMENT(j)][k] + f[fld][i][DECREMENT(j)][k]
+         +f[fld][INCREMENT(i)][j][k] + f[fld][DECREMENT(i)][j][k] // LSR -- i+1, i-1 changed to INCREMENT, DECREMENT respectively
+         -6.*f[fld][i][j][k]);
+#endif
+}
+
 
 // This function outputs the values of the fields on a slice of the lattice
 // Note that if slicedim=NDIMS in the MPI version then the sliceaverage parameter will be ignored.
+
 inline void slices()
 {
-  static FILE *slices_[nflds],*slicesp_[nflds],*slicetimes_;
+  static FILE *slices_[nflds],*slicesp_[nflds],*slicetimes_,*energydensity_;
   static int adjusted_slicedim=slicedim; // Number of dimensions to include on slice
   static int final=(slicelength-1)*sliceskip; // This gives the last value that will be included in the slice. (Note that the serial version calculates a point beyond that and then uses i<final, but this way is easier for finding the last processor that will be needed for a given slice.)
   int fld,i=0,j=0,k=0;
   int x=0,y=0,z=0; // A separate set of array indices is needed for averaging
+  int nout; // LSR -- Used for keeping track of which slice is being saved
   int numpts; // Used for keeping track of how many points are being averaged in each output
   float value; // Field value to be output
   float valuep; // LSR -- Field derivative value to be output
+  float energy_tot,kin,grad,pot; // LSR -- Energies to be output
+  float var,vard,ffd; // LSR -- Various field multiples
+  float lapls; // LSR -- Laplacian for scale()
   // MPI parameters
   int proc=my_rank;
   static int max_rank=my_rank; // Highest-rank process needed for output of slices
@@ -794,9 +826,10 @@ inline void slices()
   static int istart=1;; // Starting position in the array for each processor
   int maximum_i; // Ending position in the array for each processor
   int proc_gridsize; // Size of the array received by the root from each processor
-  float *fpoint; // Pointer for referencing different parts of the field array
+  float *fpoint,*fdpoint; // Pointer for referencing different parts of the field array
   static int abort_slices=0; // Used to abort function if the root processor was unable to cast the array it needs to for the data
   MPI_Status status;
+  MPI_Status statusp;
 
   static int first=1;
   if(first) // Open output files and initialize
@@ -817,6 +850,8 @@ inline void slices()
 	sprintf(name_,"slicesp%d%s",fld,ext_); // AX
 	slicesp_[fld]=fopen(name_,mode_); // AX
       }
+      sprintf(name_,"energydensity%s",ext_); // LSR
+      energydensity_=fopen(name_,mode_); // LSR
       sprintf(name_,"slicetimes%s",ext_);
       slicetimes_=fopen(name_,mode_);
     }
@@ -850,17 +885,21 @@ inline void slices()
   
   if(adjusted_slicedim==NDIMS && max_rank>0) // In this case multiple processors are needed. Note that in this case the sliceaverage parameter is ignored
   {
-    for(fld=0;fld<2*nfldsout;fld++) // AX -- loops over first the fields and then the field derivatives
+    for(fld=0;fld<nfldsout;fld++) // AX -- loops over first the fields and then the field derivatives
     {
 #if NDIMS==1
-      fpoint = (fld<nflds ? &(f[fld][1]) : &(fd[fld-nflds][1])); // AX, LSR -- for both fields and field derivatives, taken from checkpoint()
+      fpoint = (fld<nfldsout ? &(f[fld][1]) : &(fd[fld-nfldsout][1])); // AX, LSR -- for both fields and field derivatives, taken from checkpoint()
 #elif NDIMS==2
-      fpoint = (fld<nflds ? &(f[fld][1][0]) : &(fd[fld-nflds][1][0])); // AX, LSR
+      fpoint = (fld<nfldsout ? &(f[fld][1][0]) : &(fd[fld-nfldsout][1][0])); // AX, LSR
 #elif NDIMS==3
-      fpoint = (fld<nflds ? &(f[fld][1][0][0]) : &(fd[fld-nflds][1][0][0])); // AX
+      fpoint = &(f[fld][istart][0][0]); // AX
+      fdpoint = &(fd[fld][istart][0][0]);
 #endif
       if(my_rank>0 && my_rank<=max_rank) // All processors above rank 0 should send their data to the root processor
-	MPI_Send((void *)fpoint,local_gridsize,MPI_FLOAT,0,my_rank+fld*max_rank,MPI_COMM_WORLD);
+	{
+	  MPI_Send((void *)fpoint,local_gridsize,MPI_FLOAT,0,my_rank+fld*max_rank,MPI_COMM_WORLD);
+	  MPI_Send((void *)fdpoint,local_gridsize,MPI_FLOAT,0,my_rank+fld*max_rank,MPI_COMM_WORLD);
+	}
       else if(my_rank==0) // The root processor should receive all the data and print it to the files
       {
 	for(proc=0;proc<=max_rank;proc++)
@@ -870,8 +909,11 @@ inline void slices()
 	  else
 	  {
 	    MPI_Recv((void *)fstore,fstore_size,MPI_FLOAT,proc,proc+fld*max_rank,MPI_COMM_WORLD,&status);
-	    MPI_Get_count(&status,MPI_FLOAT,&proc_gridsize); // Find the size of the array sent by this processor	    
-	    fpoint = fstore;
+	    MPI_Get_count(&status,MPI_FLOAT,&proc_gridsize); // Find the size of the array sent by this processor	
+	    fpoint = fstore;    
+	    MPI_Recv((void *)fdstore,fdstore_size,MPI_FLOAT,proc,proc+fld*max_rank,MPI_COMM_WORLD,&statusp);
+//	    MPI_Get_count(&statusp,MPI_FLOAT,&proc_gridsize); // Find the size of the array sent by this processor
+	    fdpoint = fdstore;
 	  }
 #if NDIMS==1
 	  maximum_i = proc_gridsize;
@@ -898,11 +940,25 @@ inline void slices()
 	    for(j=0;j<=final;j+=sliceskip)
 	      for(k=0;k<=final;k+=sliceskip)
 		{
-          	  if (fld<nfldsout)
-            	    fprintf(slices_[fld],"%e\n",fpoint[k+j*(N+2)+i*N*(N+2)]*rescaling); // AX -- Save field value
-          	  else
-            	    fprintf(slicesp_[fld-nfldsout],"%e\n",fpoint[k+j*(N+2)+i*N*(N+2)]*rescaling); // AX -- Save field derivative values
+            	  fprintf(slices_[fld],"%e\n",fpoint[k+j*(N+2)+i*N*(N+2)]*rescaling); // AX -- Save field value
+            	  fprintf(slicesp_[fld],"%e\n",fdpoint[k+j*(N+2)+i*N*(N+2)]*rescaling); // AX -- Save field derivative values
+            	      
+            	  var = pw2(fpoint[k+j*(N+2)+i*N*(N+2)]*rescaling); // LSR -- Square of field value
+          	  vard = pw2(fdpoint[k+j*(N+2)+i*N*(N+2)]*rescaling); // LSR -- Square of field derivative
+          	  ffd = fpoint[k+j*(N+2)+i*N*(N+2)]*fdpoint[k+j*(N+2)+i*N*(N+2)]*pw2(rescaling); // LSR -- Product of field and derivative
+          
+          	  kin = .5*vard - rescale_r*(ad/a)*ffd + .5*pw2(rescale_r)*pw2(ad/a)*var; // LSR -- Kinetic energy terms
+          	  pot = potential_func(0,fpoint[k+j*(N+2)+i*N*(N+2)]); // LSR -- Potential energy terms
+          	  lapls = (fpoint[INCREMENT(k)+j*(N+2)+i*N*(N+2)] + fpoint[DECREMENT(k)+j*(N+2)+i*N*(N+2)]
+          	          +fpoint[k+INCREMENT(j)*(N+2)+i*N*(N+2)] + fpoint[k+DECREMENT(j)*(N+2)+i*N*(N+2)]
+		          +fpoint[k+j*(N+2)+INCREMENT(i)*N*(N+2)] + fpoint[k+j*(N+2)+DECREMENT(i)*N*(N+2)]
+			  -6.*fpoint[k+j*(N+2)+i*N*(N+2)]);
+          	  grad = .5 * pow(a, -2*(rescale_s+1)) * pw2(lapls / pw2(dx)); // LSR -- Gradient energy terms
+
+		  energy_tot = kin + pot + grad;
+		  fprintf(energydensity_,"%e\n",fpoint[k+j*(N+2)+i*N*(N+2)]*rescaling); // LSR -- Outputting field values for the time being, but fpoint is getting overwritten somewhere
         	}
+          
 #endif
 	} // End of loop over procs
 	if (fld<nfldsout)
@@ -914,6 +970,8 @@ inline void slices()
 	  {
 	    fprintf(slicesp_[fld-nfldsout],"\n"); // AX
             fflush(slicesp_[fld-nfldsout]); // AX
+            fprintf(energydensity_,"\n"); // AX
+            fflush(energydensity_); // AX
 	  }
       } // End of if(my_rank==0)
     } // End of loop over fields
@@ -967,6 +1025,7 @@ inline void slices()
 #endif
 	  }
 	  fprintf(slices_[fld],"%e\n",value*rescaling);
+	  fprintf(slicesp_[fld],"%e\n",valuep*rescaling);
 	}
       } // End of if(adjusted_slicedim==1)
       else if(adjusted_slicedim==2)
@@ -1023,6 +1082,7 @@ inline void slices()
 	      {
 		value=0.;
 		valuep=0.; // LSR
+		energy_tot=0.; // LSR
 		numpts=0;
 		for(x=i;x<i+sliceskip && x<n;x++)
 		  for(y=j;y<j+sliceskip && y<N;y++)
@@ -1031,6 +1091,16 @@ inline void slices()
 #if NDIMS==3 // This code should only be reached when NDIMS=3, but the compiler would complain without this line
 		      value += f[fld][x+1][y][z]; // The +1 adjusts for the offset in the first dimension
 		      valuep += fd[fld][x+1][y][z]; // LSR
+		      
+		      var = pw2(f[fld][i+1][j][k]); // LSR -- Square of field value
+          	      vard = pw2(fd[fld][i+1][j][k]); // LSR -- Square of field derivative
+          	      ffd = f[fld][i+1][j][k]*fd[fld][i+1][j][k]; // LSR -- Product of field and derivative
+          
+          	      kin = .5*vard - rescale_r*(ad/a)*ffd + .5*pw2(rescale_r)*pw2(ad/a)*var; // LSR -- Kinetic energy terms
+          	      pot = potential_func(0,f[fld][i+1][j][k]); // LSR -- Potential energy terms
+          	      grad = .5 * pow(a, -2*(rescale_s+1)) * pw2(laplb(fld,i,j,k) / pw2(dx)); // LSR -- Gradient energy terms
+
+		      energy_tot += kin + pot + grad;
 #endif
 		      numpts++;
 		    }
@@ -1038,6 +1108,7 @@ inline void slices()
 		{
 		  value /= (float)numpts;
 		  valuep /= (float)numpts;
+		  energy_tot /=  (float)numpts;
 		}
 		else printf("Division by zero attempted in slices routine at point i=%d, j=%d, k=%d\n",i,j,k);
 	      }
@@ -1045,15 +1116,27 @@ inline void slices()
 #if NDIMS==3 // This code should only be reached when NDIMS=3, but the compiler would complain without this line
 		value = f[fld][i+1][j][k]; // The +1 adjusts for the offset in the first dimension
 		valuep = fd[fld][i+1][j][k]; // LSR
+		var = pw2(f[fld][i+1][j][k]); // LSR -- Square of field value
+          	vard = pw2(fd[fld][i+1][j][k]); // LSR -- Square of field derivative
+          	ffd = f[fld][i+1][j][k]*fd[fld][i+1][j][k]; // LSR -- Product of field and derivative
+          
+          	kin = .5*vard - rescale_r*(ad/a)*ffd + .5*pw2(rescale_r)*pw2(ad/a)*var; // LSR -- Kinetic energy terms
+          	pot = potential_func(0,FIELD(fld)); // LSR -- Potential energy terms
+          	grad = .5 * pow(a, -2*(rescale_s+1)) * pw2(laplb(fld,i,j,k) / pw2(dx)); // LSR -- Gradient energy terms
+
+		energy_tot = kin + pot + grad;
 #endif
 	      fprintf(slices_[fld],"%e\n",value*rescaling);
 	      fprintf(slicesp_[fld],"%e\n",valuep*rescaling); // AX, LSR
+	      fprintf(energydensity_,"%e\n",energy_tot); // LSR -- Print energy values
 	    }
       } // End of if(adjusted_slicedim==3)
       fprintf(slices_[fld],"\n");
       fflush(slices_[fld]);
       fprintf(slicesp_[fld],"\n"); // AX
       fflush(slicesp_[fld]); // AX
+      fprintf(energydensity_,"\n"); // LSR
+      fflush(energydensity_); // LSR
     } // End of loop over fields
   } // End of case where slices are entirely at root processor
   

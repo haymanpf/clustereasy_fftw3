@@ -39,8 +39,8 @@ extern int my_rank, numprocs; // Rank of current process and total number of pro
 extern int n; // Size of the first dimension of the array at each processor
 extern int my_start_position;  // start position in the array for each processor.  my_start_position will equal my_rank * n if all processors are allotted equal portions n of the array. 
 extern float *fp, *fdp; // Pointers to the beginning of the field and field derivative arrays
-extern float *fstore; // If grid images or full-array slices are being stored the root processor needs an extra array to gather data from other processors
-extern int fstore_size; // Size of the fstore array
+extern float *fstore,*fdstore; // If grid images or full-array slices are being stored the root processor needs an extra array to gather data from other processors
+extern int fstore_size,fdstore_size; // Size of the fstore array
 extern int buffers_up_to_date; // Keeps track of whether the buffers are up to date. Should be set to zero whenever they are taken out of synch and checked whenever they are needed.
 
 /////////////////////////////////NON-ADJUSTABLE VARIABLES////////////////////////
@@ -87,6 +87,8 @@ const int gridsize=N*N*N; // Number of spatial points in the grid
 void initialize(); // Set initial parameters and field values
 // evolution.cpp
 float gradient_energy(int fld); // Calculate the gradient energy, <|Grad(f)|^2>=<-f Lapl(f)>, of a field
+float laplb(int fld, INDEXLIST); // LSR -- Laplacian on the boundary
+//float lapls(int fld, INDEXLIST); // LSR -- Laplacian for scale()
 void evolve_scale(float d); // Calculate the scale factor and its derivatives
 void evolve_fields(float d); // Advance the field values and scale factor using the first derivatives
 void evolve_derivs(float d); // Calculate second derivatives of fields and use them to advance first derivatives. Also calls evolve_scale().
