@@ -68,8 +68,8 @@ int n; // Size of the first dimension of the array at each processor
 int my_rank, numprocs; // Rank of current process and total number of processors (p is a loop index for processors)
 int my_start_position; // Starting position in the array for each processor - my_start_position will equal my_rank*n if all processors are allotted equal portions n of the array.
 float *fp, *fdp; // Pointers to the beginning of the field and field derivative arrays
-float *fstore; // If grid images or full-array slices are being stored the root processor needs an extra array to gather data from other processors
-int fstore_size; // Size of the fstore array
+float *fstore,*fdstore; // If grid images or full-array slices are being stored the root processor needs an extra array to gather data from other processors
+int fstore_size,fdstore_size; // Size of the fstore array
 int buffers_up_to_date=1; // Keeps track of whether the buffers are up to date. Should be set to zero whenever they are taken out of synch and checked whenever they are needed.
 
 int main(int argc, char *argv[])
