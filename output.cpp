@@ -894,7 +894,7 @@ inline void slices()
 	  for(i=1;i<=maximum_i;i+=sliceskip)
 	    {
 	      fprintf(slices_[fld],"%e\n",fpoint[i]*rescaling);
-	      fprintf(slicesp_[fld],"%e\n",fpoint[i]*rescaling); // LSR
+	      fprintf(slicesp_[fld],"%e\n",fdpoint[i]*rescaling); // LSR
 	      
 	      var = pw2(fpoint[i]*rescaling);
 	      vard = pw2(fdpoint[i]*rescaling);
@@ -916,7 +916,7 @@ inline void slices()
 	    for(j=0;j<=final;j+=sliceskip)
 	      {
 	        fprintf(slices_[fld],"%e\n",fpoint[j+i*(N+2)]*rescaling);
-	        fprintf(slicesp_[fld],"%e\n",fpoint[j+i*(N+2)]*rescaling); // LSR
+	        fprintf(slicesp_[fld],"%e\n",fdpoint[j+i*(N+2)]*rescaling); // LSR
 	        
 	        kin = .5*vard - rescale_r*(ad/a)*ffd + .5*pw2(rescale_r)*pw2(ad/a)*var;
           	field_value = &(fpoint[j+i*(N+2)]);
@@ -1042,7 +1042,7 @@ inline void slices()
 	  {
 #if NDIMS==1
 	    value = f[fld][k+1]; // The +1 adjusts for the offset in the first dimension
-	    valuep = f[fld][k+1]; // LSR
+	    valuep = fd[fld][k+1]; // LSR
 	    
 	    var = pw2(f[fld][k+1]*rescaling);
             vard = pw2(fd[fld][k+1]*rescaling);
@@ -1056,7 +1056,7 @@ inline void slices()
 	    energy_tot = kin + pot + grad;
 #elif NDIMS==2
 	    value = f[fld][1][k];
-	    valuep = f[fld][1][k]; // LSR
+	    valuep = fd[fld][1][k]; // LSR
 	    
 	    var = pw2(f[fld][1][k+1]*rescaling);
             vard = pw2(fd[fld][1][k+1]*rescaling);
@@ -1070,7 +1070,7 @@ inline void slices()
 	    energy_tot = kin + pot + grad;
 #elif NDIMS==3
 	    value = f[fld][1][0][k];
-	    valuep = f[fld][1][0][k]; // LSR
+	    valuep = fd[fld][1][0][k]; // LSR
 	    
 	    var = pw2(f[fld][1][0][k]*rescaling);
             vard = pw2(fd[fld][1][0][k]*rescaling);
@@ -1104,7 +1104,7 @@ inline void slices()
 		{
 #if NDIMS==2
 		  if(y>=n) continue; // Don't go beyond the local lattice. See comments above
-		  valuep += fd[fld][y+1][z]; // The +1 adjusts for the offset in the first dimension
+		  value += f[fld][y+1][z]; // The +1 adjusts for the offset in the first dimension
 		  valuep += fd[fld][y+1][z]; // LSR
 		  
 		  var = pw2(f[fld][y+1][z]*rescaling);
@@ -1146,7 +1146,7 @@ inline void slices()
 	    {
 #if NDIMS==2
 	      value = f[fld][j+1][k]; // The +1 adjusts for the offset in the first dimension
-	      value = f[fld][j+1][k]; // LSR
+	      valuep = fd[fld][j+1][k]; // LSR
 	      
 	      var = pw2(f[fld][j+1][k]*rescaling);
               vard = pw2(fd[fld][j+1][k]*rescaling);
