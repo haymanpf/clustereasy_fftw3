@@ -43,7 +43,11 @@ inline float lapl(int fld, INDEXLIST)
 }
 
 // Calculate the Laplacian of a field point on the boundary. (The result must be divided by dx^2 to give a Laplacian.)
+<<<<<<< HEAD
 float laplb(int fld, INDEXLIST) // LSR -- originally inline float
+=======
+inline float laplb(int fld, INDEXLIST) // LSR -- originally inline float
+>>>>>>> 77013f8e73927ae9cc0d32f14bf1cd2420202977
 {
 #if NDIMS==1
   return (f[fld][i+1] + f[fld][i-1] - 2.*f[fld][i]);

@@ -88,8 +88,12 @@ void initialize(); // Set initial parameters and field values
 // evolution.cpp
 float gradient_energy(int fld); // Calculate the gradient energy, <|Grad(f)|^2>=<-f Lapl(f)>, of a field
 float laplb(int fld, INDEXLIST); // LSR -- Laplacian on the boundary
+<<<<<<< HEAD
 int INCREMENT(int i); // LSR -- Returns i+1, or if i=N-1, returns 0
 int DECREMENT(int i); // LSR -- Similar to INCREMENT() but returns i-1
+=======
+//float lapls(int fld, INDEXLIST); // LSR -- Laplacian for scale()
+>>>>>>> 77013f8e73927ae9cc0d32f14bf1cd2420202977
 void evolve_scale(float d); // Calculate the scale factor and its derivatives
 void evolve_fields(float d); // Advance the field values and scale factor using the first derivatives
 void evolve_derivs(float d); // Calculate second derivatives of fields and use them to advance first derivatives. Also calls evolve_scale().
