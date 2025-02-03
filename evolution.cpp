@@ -14,13 +14,13 @@ The function evolve_derivs(float d) advances the field derivatives by a time int
 #include "latticeeasy.h"
 
 // Increments a grid location accounting for periodic wrapping
-inline int INCREMENT(int i)
+int INCREMENT(int i)
 {
   return( (i==N-1) ? 0 : i+1 );
 }
 
 // Decrements a grid location accounting for periodic wrapping
-inline int DECREMENT(int i)
+int DECREMENT(int i)
 {
   return( (i==0) ? N-1 : i-1 );
 }
@@ -43,7 +43,7 @@ inline float lapl(int fld, INDEXLIST)
 }
 
 // Calculate the Laplacian of a field point on the boundary. (The result must be divided by dx^2 to give a Laplacian.)
-inline float laplb(int fld, INDEXLIST)
+float laplb(int fld, INDEXLIST) // LSR -- originally inline float
 {
 #if NDIMS==1
   return (f[fld][i+1] + f[fld][i-1] - 2.*f[fld][i]);
@@ -54,10 +54,11 @@ inline float laplb(int fld, INDEXLIST)
 #elif NDIMS==3
   return (f[fld][i][j][INCREMENT(k)] + f[fld][i][j][DECREMENT(k)]
          +f[fld][i][INCREMENT(j)][k] + f[fld][i][DECREMENT(j)][k]
-         +f[fld][i+1][j][k] + f[fld][i-1][j][k]
+         +f[fld][INCREMENT(i)][j][k] + f[fld][DECREMENT(i)][j][k] // LSR -- i+1, i-1 changed to INCREMENT, DECREMENT respectively
          -6.*f[fld][i][j][k]);
 #endif
 }
+
 
 /////////////////////////////////////////////////////
 // Externally called function(s)

@@ -1,19 +1,4 @@
 /*
-MODEL.H file for the TWOFLDLAMBDA model.
-MPI VERSION
-Written by Gary Felder (gfelder@email.smith.edu)
-Last Modified 10/17/07
-
-This file contains the model specific functions and definitions for the model:
-V = 1/4 lambda phi^4 + 1/2 g^2 phi^2 chi^2
-Note that this model is simply a special case of the NFLDLAMBDA model. Choosing nflds=2 for that model is equivalent to running this one.
-Comments: The inflaton potential is taken to be pure lambda phi^4. The inflaton decays (generally resonantly) to the single field chi. Neither of the fields have bare masses and the theory is therefore conformal. In practice this means that after appropriate rescaling of the time, space, and field variables the only effect of the expansion of the universe on the field equations is via the term a''/a, which rapidly becomes negligible after inflation.
-
-We use the default rescalings (see below), which give A=1/f0, B=sqrt(lambda) f0, r=1, s=-1
-The potential in program units is given by V_{pr} = 1/4 phi_{pr}^4 + 1/2 gl phi_{pr}^2 chi_{pr}^2
-*/
-
-/*
 General comments about the model.h file:
 This file contains the following functions - all called externally
 modelinfo(FILE *info_) outputs information about the model and model-specific parameters to a file.
@@ -24,12 +9,6 @@ effective_mass(float mass_sq[], float *field_values) calculates the square masse
 model_output(int flush, char *ext_) allows each model to include its own specialized output function(s). The parameter flush is set to 1 when infrequent calculations are being performed and 0 otherwise. The string ext_ gives the extension for output filenames.
 */
 
-/* - This section should be copied into parameters.h when using this model
-// ---Adjustable parameters for TWOFLDLAMBDA model--- //
-const float lambda=9.e-14; // Self-coupling of inflaton
-const float gl=200; // Resonance parameter g^2/lambda
-*/
-
 // Rescaling parameters.
 // The program variables ("_pr") are defined as
 //   f_pr = rescale_A a^rescale_r f (f=field value)
@@ -38,9 +17,9 @@ const float gl=200; // Resonance parameter g^2/lambda
 // The constants beta, cpl, and f0 are used to set the variable rescalings rescale_A, rescale_B, rescale_r, and rescale_s.
 // These rescaling constants may be reset independently; their settings in terms of beta, cpl, and f0 are suggestions. See the documentation for more details.
 // These rescalings are intrinsic to the model and probably shouldn't be changed for individual runs. Adjustable parameters are stored in "parameters.h"
-const float beta=4.; // Exponent of the dominant term in the potential
-const float cpl=lambda; // Coefficient of the dominant term in the potential (up to numerical factors - see documentation)
-const float f0=0.342; // Initial value of phi in Planck units, typically the point at which phi'=0
+const float beta=2*n_pow; // Exponent of the dominant term in the potential
+const float cpl=pw2(T_mass) * n_pow / pow(6*alpha, n_pow-1); // Coefficient of the dominant term in the potential (up to numerical factors - see documentation)
+const float f0=f0_T; // Initial value of phi in Planck units, typically the point at which phi'=0
 // By default these are automatically set to A=1/f0, B=sqrt(cpl) f0^(-1+beta/2), R=6/(2+beta), S=3(2-beta)/(2+beta). They may be adjusted to different values, but the relationship S=2R-3 must be maintained for the program equations to remain correct.
 const float rescale_A=1./f0;
 const float rescale_B=sqrt(cpl)*pow(f0,-1.+beta/2.);
@@ -58,18 +37,17 @@ extern float model_vars[num_model_vars];
 
 // Macros to make the equations more readable: The values of fld are 0=Phi,1=Chi
 #define PHI FIELD(0)
-#define CHI FIELD(1)
 
 // Model specific details about the run to be output to an information file
 inline void modelinfo(FILE *info_)
 {
   // Name and description of model
-  fprintf(info_,"Two Field Lambda Model\n");
-  fprintf(info_,"V = 1/4 lambda phi^4 + 1/2 g^2 phi^2 chi^2\n\n");
+  fprintf(info_,"T-Model\n");
+  fprintf(info_,"V = 3 alpha m^2 tanh^2n (phi/sqrt(6 alpha))\n");
 
   // Model specific parameter values
-  fprintf(info_,"gl (g^2/lambda) = %f\n",gl);
-  fprintf(info_,"lambda = %e\n",lambda);
+  fprintf(info_,"n_pow = %e\n",n_pow);
+  fprintf(info_,"alpha = %e\n",alpha);
 }
 
 // Perform any model specific initialization
@@ -78,9 +56,9 @@ inline void modelinitialize(int which_call)
 {
   if(which_call==1)
   {
-    if(nflds!=2)
+    if(nflds!=1)
     {
-      printf("Number of fields for TWOFLDLAMBDA model must be 2. Exiting.\n");
+      printf("Number of fields for T-model must be 1. Exiting.\n");
       exit(1);
     }
   }
@@ -88,12 +66,12 @@ inline void modelinitialize(int which_call)
 
 // The constant num_potential_terms must be defined for use by outside functions
 // Terms: term=0: 1/4 lambda phi^4 --- term=1: 1/2 g^2 phi^2 chi^2
-const int num_potential_terms=2; // Number of terms that are calculated separately in the potential
+const int num_potential_terms=1; // Number of terms that are calculated separately in the potential
 // Potential energy terms
 // See documentation for normalization of these terms.
 // When setting initial conditions field values will be supplied in the array field_values. Otherwise this function will calculate them on the lattice.
 inline float potential_energy(int term, float *field_values)
-{
+{ 
   DECLARE_INDICES
   float potential=0., result=0.;
 
@@ -103,9 +81,7 @@ inline float potential_energy(int term, float *field_values)
     LOOP
     {
       if(term==0)
-        result += pw2(pw2(PHI));
-      else if(term==1)
-        result += pw2(PHI*CHI);
+        result += pow(tanh(f0 * PHI / (sqrt(6*alpha) * pow(a,rescale_r))), 2*n_pow);
     }
 
     MPI_Allreduce(&result, &potential, 1, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD); // Sum potentials from all processors to get the average potential for the array
@@ -114,16 +90,12 @@ inline float potential_energy(int term, float *field_values)
   else // If field values are given then use them instead
   {
     if(term==0)
-      potential = pw2(pw2(field_values[0]));
-    else if(term==1)
-      potential = pw2(field_values[0]*field_values[1]);
+      potential = pow(tanh(f0 * field_values[0] / (sqrt(6*alpha) * pow(a,rescale_r))), 2*n_pow);
   }
 
   // Include numerical coefficients
   if(term==0) // 1/4 lambda phi^4
-    potential *= .25;
-  else if(term==1) // 1/2 g^2 phi^2 chi^2 
-    potential *= .5*gl;
+    potential *= 1/(2*n_pow) * pow(6*alpha/pw2(f0),n_pow)*pow(a,-2*rescale_s+2*rescale_r);
 
   return (potential);
 }
@@ -133,9 +105,7 @@ inline float potential_energy(int term, float *field_values)
 inline float dvdf(int fld, INDEXLIST)
 {
   if(fld==0) // Phi
-    return( (pw2(PHI) + gl*pw2(CHI))*PHI );
-  else // Chi
-    return( gl*pw2(PHI)*CHI );
+    return( pow(sqrt(6*alpha) / f0, 2*n_pow-1)*pow(a,-2*rescale_s+rescale_r)*pow(tanh(f0 * PHI / (sqrt(6*alpha) * pow(a,rescale_r))), 2*n_pow - 1) * pow(cosh(f0 * PHI / (sqrt(6*alpha) * pow(a,rescale_r))), -2) );
 }
 
 // Calculate effective mass squared and put it into the array mass_sq[] (used for initial conditions and power spectra)
@@ -145,7 +115,7 @@ inline void effective_mass(float mass_sq[], float *field_values)
 {
   DECLARE_INDICES
   int fld;
-  float fldsqrd[nflds]; // Square value of field
+  float d2Vdf2[nflds]; // Second derivative of the field
   float result;
   float correction; // Used to adjust masses by the appropriate power of the scale factor. (See documentation.)
 
@@ -155,18 +125,23 @@ inline void effective_mass(float mass_sq[], float *field_values)
     for(fld=0;fld<nflds;fld++)
     {
       result=0.;
-      LOOP
-        result+=pw2(FIELD(fld));
-      MPI_Allreduce(&result, &(fldsqrd[fld]), 1, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD); // Sum results from all processors to get the average for the array
-      fldsqrd[fld] /= (float)gridsize; // Convert sum to average.
+      LOOP{
+        result += (2*n_pow-1)*pow( tanh(f0 * PHI / (sqrt(6*alpha) * pow(a,rescale_r))) , 2*n_pow-2 ) / pow( cosh(f0 * PHI / (sqrt(6*alpha) * pow( a , rescale_r ))) , 4 );
+        result -= 2 * pow( tanh(f0 * PHI / (sqrt(6*alpha) * pow( a , rescale_r ))) , 2*n_pow ) / pow( cosh(f0 * PHI / (sqrt(6*alpha) * pow( a , rescale_r ))) , 2 );
+        }
+      MPI_Allreduce(&result, &(d2Vdf2[fld]), 1, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
+      d2Vdf2[fld] /= (float)gridsize;
     }
   }
   else // If field values are given then use them instead
     for(fld=0;fld<nflds;fld++)
-      fldsqrd[fld]=pw2(field_values[fld]);
+    {
+      d2Vdf2[fld]=0.;
+      d2Vdf2[fld] += (2*n_pow-1)*pow(tanh(f0 * field_values[0] / (sqrt(6*alpha) * pow(a,rescale_r))), 2*n_pow-2) / pow(cosh(f0 * field_values[0] / (sqrt(6*alpha) * pow(a,rescale_r))), 4);
+      d2Vdf2[fld] -=2 * pow(tanh(f0 * field_values[0] / (sqrt(6*alpha) * pow(a,rescale_r))), 2*n_pow) / pow(cosh(f0 * field_values[0] / (sqrt(6*alpha) * pow(a,rescale_r))), 2);
+    }
 
-  mass_sq[0] = 3.*fldsqrd[0] + gl*fldsqrd[1];
-  mass_sq[1] = gl*fldsqrd[0];
+  mass_sq[0] = pow(6*alpha / pw2(f0), n_pow-1) * pow(a, -2*rescale_s) * d2Vdf2[0];
 
   // Put in scale factor correction. This calculation should be the same for all models.
   if(expansion>0) // If there's no expansion don't bother with this.
@@ -181,4 +156,3 @@ inline void effective_mass(float mass_sq[], float *field_values)
 inline void model_output(int flush,char *ext_){}
 
 #undef PHI
-#undef CHI
