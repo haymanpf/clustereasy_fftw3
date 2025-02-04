@@ -12,11 +12,11 @@ const float f0_T = 2.32524067e-2; // Initial value of phi in Planck units, typic
 // Adjustable run parameters
 
 #define NDIMS 3
-const int N = 128; // Number of points along each edge of the cubical lattice
+const int N = 16; // Number of points along each edge of the cubical lattice
 const int nflds = 1;  //Number of fields
 const float L = 15; //40*pi *pow(0.1908 / sqrt(6*alpha), n_pow-1); // Size of box (i.e. length of each edge) in rescaled distance units
 const float dt = .005; // Size of time step
-const float tf=100.; // Final time
+const float tf=500.; // Final time
 const int seed=1; // Random number seed. Should be a positive integer
 const float initfield[]={1.}; // Initial values of the fields in program units. All nonspecified values are taken to be zero.
 const float initderivs[]={0.}; // Initial values of the field derivatives in program units. All nonspecified values are taken to be zero.
@@ -49,6 +49,7 @@ const int sspectra=0; // Output power spectra
   const float tspectra=t_start_output;
 const int senergy=1; // Output components of energy density
   const float tenergy=t_start_output;
+const int senergydensity=1; // LSR -- Set to 1 to output energy density values across the grid
 const int shistograms=1; // Output histograms of fields using nbins as the number of bins
   const float thistograms=t_start_output;
   const int nbins=256; // Number of bins

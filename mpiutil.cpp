@@ -87,11 +87,8 @@ void cast_field_arrays(int array_size)
   {
     MPI_Reduce(&n,&fstore_size,1,MPI_INT,MPI_MAX,0,MPI_COMM_WORLD); // Find the largest value of n so that the array at the root processor will be big enough to hold values from any other processor
     MPI_Reduce(&n,&fdstore_size,1,MPI_INT,MPI_MAX,0,MPI_COMM_WORLD);
-<<<<<<< HEAD
     fstore_size += 2; // LSR -- Change n to n+2 to include buffers
     fdstore_size += 2; // LSR
-=======
->>>>>>> 77013f8e73927ae9cc0d32f14bf1cd2420202977
     if(my_rank==0)
     {
       if(NDIMS>1) 
@@ -105,12 +102,7 @@ void cast_field_arrays(int array_size)
         fdstore_size *= N;
       }
       fstore = new float[fstore_size];
-<<<<<<< HEAD
       fdstore = new float[fdstore_size];
-=======
-      fdstore = fstore;
-      fdstore_size = fstore_size;
->>>>>>> 77013f8e73927ae9cc0d32f14bf1cd2420202977
       if(fstore==NULL)
 	printf("Unable to allocate array for slices and checkpointing. These functions will not be performed.\n");
     }

@@ -96,24 +96,6 @@ inline float potential_energy(int term, float *field_values)
   // Include numerical coefficients
   if(term==0) // 1/4 lambda phi^4
     potential *= 1/(2*n_pow) * pow(6*alpha/pw2(f0),n_pow)*pow(a,-2*rescale_s+2*rescale_r);
-<<<<<<< HEAD
-=======
-
-  return (potential);
-}
-
-inline float potential_func(int term, float field_value)
-{ 
-  DECLARE_INDICES
-  float potential=0., result=0.;
-
-  potential = pow(tanh(f0 * field_value / (sqrt(6*alpha) * pow(a,rescale_r))), 2*n_pow);
-
-
-  // Include numerical coefficients
-  if(term==0) // 1/4 lambda phi^4
-    potential *= 1/(2*n_pow) * pow(6*alpha/pw2(f0),n_pow)*pow(a,-2*rescale_s+2*rescale_r);
->>>>>>> 77013f8e73927ae9cc0d32f14bf1cd2420202977
 
   return (potential);
 }

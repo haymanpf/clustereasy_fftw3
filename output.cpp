@@ -821,8 +821,11 @@ inline void slices()
 	sprintf(name_,"slicesp%d%s",fld,ext_); // AX
 	slicesp_[fld]=fopen(name_,mode_); // AX
       }
-      sprintf(name_,"energydensity%s",ext_); // LSR
-      energydensity_=fopen(name_,mode_); // LSR
+      if(senergydensity==1)
+      {
+        sprintf(name_,"energydensity%s",ext_); // LSR
+        energydensity_=fopen(name_,mode_); // LSR
+      }
       sprintf(name_,"slicetimes%s",ext_);
       slicetimes_=fopen(name_,mode_);
     }
@@ -907,7 +910,8 @@ inline void slices()
 	      grad = .5*pow(a, -2*(rescale_s+1)) * pw2(lapls / pw2(dx));
 	      
 	      energy_tot = kin + pot + grad;
-	      fprintf(energydensity_,"%e\n",energy_tot);
+	      if(senergydensity==1)
+	        fprintf(energydensity_,"%e\n",energy_tot);
 	    }
 #elif NDIMS==2
 	  maximum_i = proc_gridsize/(N+2)-2;
@@ -927,7 +931,8 @@ inline void slices()
           	grad = .5 * pow(a, -2*(rescale_s+1)) * pw2(lapls / pw2(dx));
 
 		energy_tot = kin + pot + grad;
-		fprintf(energydensity_,"%e\n",energy_tot);
+		if(senergydensity==1)
+		  fprintf(energydensity_,"%e\n",energy_tot);
 	      }
 #elif NDIMS==3
 	  maximum_i = proc_gridsize/N/(N+2)-2; // LSR -- Removing buffers from loop
@@ -953,7 +958,8 @@ inline void slices()
           	  grad = .5 * pow(a, -2*(rescale_s+1)) * pw2(lapls / pw2(dx)); // LSR -- Gradient energy terms
 
 		  energy_tot = kin + pot + grad;
-		  fprintf(energydensity_,"%e\n",energy_tot); // LSR
+		  if(senergydensity==1)
+		    fprintf(energydensity_,"%e\n",energy_tot); // LSR
         	}
           
 #endif
@@ -962,9 +968,11 @@ inline void slices()
 	fflush(slices_[fld]);
 	fprintf(slicesp_[fld],"\n"); // AX
         fflush(slicesp_[fld]); // AX
-        fprintf(energydensity_,"\n"); // LSR
-        fflush(energydensity_); // LSR
-	
+        if(senergydensity==1)
+        {
+          fprintf(energydensity_,"\n"); // LSR
+          fflush(energydensity_); // LSR
+	}
       } // End of if(my_rank==0)
     } // End of loop over fields
   } // End of case where more than one processor is needed
@@ -1086,7 +1094,8 @@ inline void slices()
 	  }
 	  fprintf(slices_[fld],"%e\n",value*rescaling);
 	  fprintf(slicesp_[fld],"%e\n",valuep*rescaling);
-	  fprintf(energydensity_,"%e\n",energy_tot);
+	  if(senergydensity==1)
+	    fprintf(energydensity_,"%e\n",energy_tot);
 	}
       } // End of if(adjusted_slicedim==1)
       else if(adjusted_slicedim==2)
@@ -1176,6 +1185,8 @@ inline void slices()
 	    }
 	    fprintf(slices_[fld],"%e\n",value*rescaling);
 	    fprintf(slicesp_[fld],"%e\n",valuep*rescaling); // LSR
+	    if(senergydensity==1)
+	      fprintf(energydensity_,"%e\n",energy_tot);
 	  }
       } // End of if(adjusted_slicedim==2)
       else if(adjusted_slicedim==3)
@@ -1236,15 +1247,19 @@ inline void slices()
 #endif
 	      fprintf(slices_[fld],"%e\n",value*rescaling);
 	      fprintf(slicesp_[fld],"%e\n",valuep*rescaling); // AX, LSR
-	      fprintf(energydensity_,"%e\n",energy_tot); // LSR -- Print energy values
+	      if(senergydensity==1)
+	        fprintf(energydensity_,"%e\n",energy_tot); // LSR -- Print energy values
 	    }
       } // End of if(adjusted_slicedim==3)
       fprintf(slices_[fld],"\n");
       fflush(slices_[fld]);
       fprintf(slicesp_[fld],"\n"); // AX
       fflush(slicesp_[fld]); // AX
-      fprintf(energydensity_,"\n"); // LSR
-      fflush(energydensity_); // LSR
+      if(senergydensity==1)
+      {
+        fprintf(energydensity_,"\n"); // LSR
+        fflush(energydensity_); // LSR
+      }
     } // End of loop over fields
   } // End of case where slices are entirely at root processor
   
