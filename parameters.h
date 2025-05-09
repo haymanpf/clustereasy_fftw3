@@ -8,21 +8,21 @@ This file contains all the adjustable parameters for running the latticeeasy pro
 const float n_pow = 1 ; // Power of tanh
 const float alpha = 1e-5; // Alpha attractor value
 const float T_mass = 1.366914148193201e-06; 
-const float f0_T = 2.32524067e-2; // Initial value of phi in Planck units, typically the point at which phi'=0
+const float f0_T = 2.32524067e-02; // Initial value of phi in Planck units, typically the point at which phi'=0
 // Adjustable run parameters
 
 #define NDIMS 3
-const int N = 16; // Number of points along each edge of the cubical lattice
+const int N = 128; // Number of points along each edge of the cubical lattice
 const int nflds = 1;  //Number of fields
-const float L = 15; //40*pi *pow(0.1908 / sqrt(6*alpha), n_pow-1); // Size of box (i.e. length of each edge) in rescaled distance units
+const float L = 20; //40*pi *pow(0.1908 / sqrt(6*alpha), n_pow-1); // Size of box (i.e. length of each edge) in rescaled distance units
 const float dt = .005; // Size of time step
-const float tf=500.; // Final time
+const float tf=100.; // Final time
 const int seed=1; // Random number seed. Should be a positive integer
 const float initfield[]={1.}; // Initial values of the fields in program units. All nonspecified values are taken to be zero.
 const float initderivs[]={0.}; // Initial values of the field derivatives in program units. All nonspecified values are taken to be zero.
 const int expansion=2; // Whether to use no expansion (0), power-law expansion (1), or self-consistent expansion (2)
 const float expansion_power=.5; // Power of t in power law expansion. Only used when expansion=1.. Set to .5 for radiation or .67 for matter domination.
-const float kcutoff=4; // Momentum for initial lowpass filter. Set to 0 to not filter
+const float kcutoff=0; // Momentum for initial lowpass filter. Set to 0 to not filter
 
 // If and how to continue previous runs.
 // If no grid image is available in the run directory then a new run will be started irrespective of continue_run.

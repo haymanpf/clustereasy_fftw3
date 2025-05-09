@@ -789,7 +789,7 @@ inline void slices()
   float valuep; // LSR -- Field derivative value to be output
   float energy_tot,kin,grad,pot; // LSR -- Energies to be output
   float var,vard,ffd; // LSR -- Products of field values and field derivative values
-  float lapls; // LSR -- Laplacian for scale()
+  float grad_sq; // LSR -- Gradient of field squared
   // MPI parameters
   int proc=my_rank;
   static int max_rank=my_rank; // Highest-rank process needed for output of slices
@@ -906,8 +906,8 @@ inline void slices()
 	      kin = .5*vard - rescale_r*(ad/a)*ffd + .5*pw2(rescale_r)*pw2(ad/a)*var;
 	      field_value = &(fpoint[i]);
               pot = potential_energy(0,field_value);// LSR -- Potential energy terms
-	      lapls = (fpoint[i+1] + fpoint[i-1] - 2.*fpoint[i]);
-	      grad = .5*pow(a, -2*(rescale_s+1)) * pw2(lapls / pw2(dx));
+	      grad_sq = (pw2(fpoint[i+1] - fpoint[i-1])) * pw2(rescaling / (2*dx)); // LSR -- Gradient squared at (i)
+	      grad = .5 * pow(a, -2*(rescale_s+1)) * grad_sq; // LSR -- Gradient energy terms
 	      
 	      energy_tot = kin + pot + grad;
 	      if(senergydensity==1)
@@ -925,10 +925,9 @@ inline void slices()
 	        kin = .5*vard - rescale_r*(ad/a)*ffd + .5*pw2(rescale_r)*pw2(ad/a)*var;
           	field_value = &(fpoint[j+i*(N+2)]);
           	pot = potential_energy(0,field_value);// LSR -- Potential energy terms
-          	lapls = (fpoint[INCREMENT(j)+i*(N+2)] + fpoint[DECREMENT(j)+i*(N+2)]
-          		+fpoint[j+(i+1)*(N+2)] + fpoint[j+(i-1)*(N+2)]
-          		-4.*fpoint[j+i*(N+2)]);
-          	grad = .5 * pow(a, -2*(rescale_s+1)) * pw2(lapls / pw2(dx));
+          	grad_sq = (pw2(fpoint[INCREMENT(j)+i*(N+2)] - fpoint[DECREMENT(j)+i*(N+2)]) // LSR -- Gradient squared at (i, j)
+          	  	   +pw2(fpoint[j+(i+1)*(N+2)] - fpoint[j+(i-1)*(N+2)])) * pw2(rescaling / (2*dx));
+          	grad = .5 * pow(a, -2*(rescale_s+1)) * grad_sq;
 
 		energy_tot = kin + pot + grad;
 		if(senergydensity==1)
@@ -951,11 +950,10 @@ inline void slices()
           	  kin = .5*vard - rescale_r*(ad/a)*ffd + .5*pw2(rescale_r)*pw2(ad/a)*var; // LSR -- Kinetic energy terms
           	  field_value = &(fpoint[k+j*(N+2)+i*N*(N+2)]); // LSR -- Saves a pointer to the field value for potential_energy()
           	  pot = potential_energy(0,field_value); // LSR -- Potential energy terms
-          	  lapls = (fpoint[INCREMENT(k)+j*(N+2)+i*N*(N+2)] + fpoint[DECREMENT(k)+j*(N+2)+i*N*(N+2)]
-          	          +fpoint[k+INCREMENT(j)*(N+2)+i*N*(N+2)] + fpoint[k+DECREMENT(j)*(N+2)+i*N*(N+2)]
-		          +fpoint[k+j*(N+2)+(i+1)*N*(N+2)] + fpoint[k+j*(N+2)+(i-1)*N*(N+2)]
-			  -6.*fpoint[k+j*(N+2)+i*N*(N+2)]);
-          	  grad = .5 * pow(a, -2*(rescale_s+1)) * pw2(lapls / pw2(dx)); // LSR -- Gradient energy terms
+          	  grad_sq = (pw2(fpoint[INCREMENT(k)+j*(N+2)+i*N*(N+2)] - fpoint[DECREMENT(k)+j*(N+2)+i*N*(N+2)]) // LSR -- Gradient squared at (i,j,k)
+          	  	     +pw2(fpoint[k+INCREMENT(j)*(N+2)+i*N*(N+2)] - fpoint[k+DECREMENT(j)*(N+2)+i*N*(N+2)])
+          	  	     +pw2(fpoint[k+j*(N+2)+(i+1)*N*(N+2)] - fpoint[k+j*(N+2)+(i-1)*N*(N+2)])) * pw2(rescaling / (2*dx));
+          	  grad = .5 * pow(a, -2*(rescale_s+1)) * grad_sq; // LSR -- Gradient energy terms
 
 		  energy_tot = kin + pot + grad;
 		  if(senergydensity==1)
@@ -1004,35 +1002,41 @@ inline void slices()
               kin = .5*vard - rescale_r*(ad/a)*ffd + .5*pw2(rescale_r)*pw2(ad/a)*var; // LSR -- Kinetic energy terms
               field_value = &(f[fld][z+1]);
               pot = potential_energy(0,field_value); // LSR -- Potential energy terms
-              grad = .5 * pow(a, -2*(rescale_s+1)) * pw2(laplb(fld,z+1) / pw2(dx)); // LSR -- Gradient energy terms
-
+              grad_sq = (pw2(f[fld][INCREMENT(z+1)] - f[fld][DECREMENT(z+1)])) * pw2(rescaling / (2*dx)); // LSR -- Gradient squared at (i)
+	      grad = .5 * pow(a, -2*(rescale_s+1)) * grad_sq; // LSR -- Gradient energy terms
+	      
 	      energy_tot += kin + pot + grad;
 #elif NDIMS==2
 	      value += f[fld][1][z];
 	      valuep += fd[fld][1][z]; // LSR
 	      
-	      var = pw2(f[fld][1][z+1]*rescaling); 
-              vard = pw2(fd[fld][1][z+1]*rescaling);
-              ffd = f[fld][1][z+1]*fd[fld][1][z+1]*pw2(rescaling); 
+	      var = pw2(f[fld][1][z]*rescaling); 
+              vard = pw2(fd[fld][1][z]*rescaling);
+              ffd = f[fld][1][z]*fd[fld][1][z]*pw2(rescaling); 
               
               kin = .5*vard - rescale_r*(ad/a)*ffd + .5*pw2(rescale_r)*pw2(ad/a)*var;
-              field_value = &(f[fld][1][z+1]);
+              field_value = &(f[fld][1][z]);
               pot = potential_energy(0,field_value);
-              grad = .5 * pow(a, -2*(rescale_s+1)) * pw2(laplb(fld,1,z+1) / pw2(dx));
+              grad_sq = (pw2(f[fld][1][INCREMENT(z)] - f[fld][1][DECREMENT(z)]) // LSR -- Gradient squared at (i, j)
+          	  	 +pw2(f[fld][2][z]-f[fld][0][z])) * pw2(rescaling / (2*dx));
+              grad = .5 * pow(a, -2*(rescale_s+1)) * grad_sq; // LSR -- Gradient energy terms
 
 	      energy_tot += kin + pot + grad;
 #elif NDIMS==3
 	      value += f[fld][1][0][z];
 	      valuep += fd[fld][1][0][z]; // LSR
 	      
-	      var = pw2(f[fld][1][0][z+1]*rescaling);
-              vard = pw2(fd[fld][1][0][z+1]*rescaling);
-              ffd = f[fld][1][0][z+1]*fd[fld][1][0][z+1]*pw2(rescaling);
+	      var = pw2(f[fld][1][0][z]*rescaling);
+              vard = pw2(fd[fld][1][0][z]*rescaling);
+              ffd = f[fld][1][0][z]*fd[fld][1][0][z]*pw2(rescaling);
           
               kin = .5*vard - rescale_r*(ad/a)*ffd + .5*pw2(rescale_r)*pw2(ad/a)*var;
-              field_value = &(f[fld][1][0][z+1]);
+              field_value = &(f[fld][1][0][z]);
               pot = potential_energy(0,field_value);
-              grad = .5 * pow(a, -2*(rescale_s+1)) * pw2(laplb(fld,1,0,z+1) / pw2(dx));
+              grad_sq = (pw2(f[fld][1][0][INCREMENT(z)] - f[fld][1][0][DECREMENT(z)])
+              		 +pw2(f[fld][1][1][z] - f[fld][1][DECREMENT(0)][z])
+              		 +pw2(f[fld][2][1][z] - f[fld][0][0][z])) * pw2(rescaling / (2*dx));
+              grad = .5 * pow(a, -2*(rescale_s+1)) * grad_sq; // LSR -- Gradient energy terms
 
 	      energy_tot += kin + pot + grad;
 #endif
@@ -1059,21 +1063,24 @@ inline void slices()
             kin = .5*vard - rescale_r*(ad/a)*ffd + .5*pw2(rescale_r)*pw2(ad/a)*var;
             field_value = &(f[fld][k+1]);
             pot = potential_energy(0,field_value);
-            grad = .5 * pow(a, -2*(rescale_s+1)) * pw2(laplb(fld,k+1) / pw2(dx));
+            grad_sq = pw2(f[fld][INCREMENT(k+1)] - f[fld][DECREMENT(k+1)]) * pw2(rescaling / (2*dx));
+            grad = .5 * pow(a, -2*(rescale_s+1)) * grad_sq;
 
 	    energy_tot = kin + pot + grad;
 #elif NDIMS==2
 	    value = f[fld][1][k];
 	    valuep = fd[fld][1][k]; // LSR
 	    
-	    var = pw2(f[fld][1][k+1]*rescaling);
-            vard = pw2(fd[fld][1][k+1]*rescaling);
-            ffd = f[fld][1][k+1]*fd[fld][1][k+1]*pw2(rescaling);
+	    var = pw2(f[fld][1][k]*rescaling);
+            vard = pw2(fd[fld][1][k]*rescaling);
+            ffd = f[fld][1][k+1]*fd[fld][1][k]*pw2(rescaling);
           
             kin = .5*vard - rescale_r*(ad/a)*ffd + .5*pw2(rescale_r)*pw2(ad/a)*var;
-            field_value = &(f[fld][1][k+1]);
+            field_value = &(f[fld][1][k]);
             pot = potential_energy(0,field_value);
-            grad = .5 * pow(a, -2*(rescale_s+1)) * pw2(laplb(fld,1,k+1) / pw2(dx));
+            grad_sq = (pw2(f[fld][1][INCREMENT(k)] - f[fld][1][DECREMENT(k)])
+            	       +pw2(f[fld][2][k] - f[fld][0][k])) * pw2(rescaling / (2*dx));
+            grad = .5 * pow(a, -2*(rescale_s+1)) * grad_sq;
 
 	    energy_tot = kin + pot + grad;
 #elif NDIMS==3
@@ -1087,6 +1094,9 @@ inline void slices()
             kin = .5*vard - rescale_r*(ad/a)*ffd + .5*pw2(rescale_r)*pw2(ad/a)*var;
             field_value = &(f[fld][1][0][k]);
             pot = potential_energy(0,field_value);
+            grad_sq = (pw2(f[fld][1][0][INCREMENT(k)] - f[fld][1][0][DECREMENT(k)])
+            	       +pw2(f[fld][1][INCREMENT(0)][k] - f[fld][1][DECREMENT(0)][k])
+            	       +pw2(f[fld][2][0][k] - f[fld][0][0][k])) * pw2(rescaling / (2*dx)); 
             grad = .5 * pow(a, -2*(rescale_s+1)) * pw2(laplb(fld,1,0,k) / pw2(dx));
 
 	    energy_tot = kin + pot + grad;
@@ -1123,7 +1133,9 @@ inline void slices()
             	  kin = .5*vard - rescale_r*(ad/a)*ffd + .5*pw2(rescale_r)*pw2(ad/a)*var;
             	  field_value = &(f[fld][y+1][z]);
                   pot = potential_energy(0,field_value);
-            	  grad = .5 * pow(a, -2*(rescale_s+1)) * pw2(laplb(fld,y+1,z) / pw2(dx));
+                  grad_sq = (pw2(f[fld][y+1][INCREMENT(z)] - f[fld][y+1][DECREMENT(z)])
+                  	     +pw2(f[fld][INCREMENT(y+1)][z] - f[fld][DECREMENT(y+1)][z])) * pw2(rescaling / (2*dx)); 
+            	  grad = .5 * pow(a, -2*(rescale_s+1)) * grad_sq;
 
 	    	  energy_tot += kin + pot + grad;
 #elif NDIMS==3
@@ -1137,7 +1149,10 @@ inline void slices()
             	  kin = .5*vard - rescale_r*(ad/a)*ffd + .5*pw2(rescale_r)*pw2(ad/a)*var;
             	  field_value = &(f[fld][1][y][z]);
                   pot = potential_energy(0,field_value);
-            	  grad = .5 * pow(a, -2*(rescale_s+1)) * pw2(laplb(fld,1,y,z) / pw2(dx));
+                  grad_sq = (pw2(f[fld][1][y][INCREMENT(z)] - f[fld][1][y][DECREMENT(z)])
+                  	     +pw2(f[fld][1][INCREMENT(y)][z] - f[fld][1][DECREMENT(y)][z])
+                  	     +pw2(f[fld][2][y][z] - f[fld][0][y][z])) * pw2(rescaling / (2*dx));
+            	  grad = .5 * pow(a, -2*(rescale_s+1)) * grad_sq;
 
 	    	  energy_tot += kin + pot + grad;
 #endif
@@ -1164,7 +1179,9 @@ inline void slices()
               kin = .5*vard - rescale_r*(ad/a)*ffd + .5*pw2(rescale_r)*pw2(ad/a)*var;
               field_value = &(f[fld][j+1][k]);
               pot = potential_energy(0,field_value);
-              grad = .5 * pow(a, -2*(rescale_s+1)) * pw2(laplb(fld,j+1,k) / pw2(dx));
+              grad_sq = (pw2(f[fld][j+1][INCREMENT(k)] - f[fld][j+1][DECREMENT(k)])
+              		 +pw2(f[fld][INCREMENT(j+1)][k] - f[fld][DECREMENT(j+1)][k])) * pw2(rescaling / (2*dx));
+              grad = .5 * pow(a, -2*(rescale_s+1)) * grad_sq;
 
 	      energy_tot = kin + pot + grad;
 #elif NDIMS==3
@@ -1178,7 +1195,10 @@ inline void slices()
               kin = .5*vard - rescale_r*(ad/a)*ffd + .5*pw2(rescale_r)*pw2(ad/a)*var;
               field_value = &(f[fld][1][j][k]);
               pot = potential_energy(0,field_value);
-              grad = .5 * pow(a, -2*(rescale_s+1)) * pw2(laplb(fld,1,j,k) / pw2(dx));
+              grad_sq = (pw2(f[fld][1][j][INCREMENT(k)] - f[fld][1][j][DECREMENT(k)])
+              		 +pw2(f[fld][1][INCREMENT(j)][k] - f[fld][1][DECREMENT(j)][k])
+              		 +pw2(f[fld][2][j][k] - f[fld][0][j][k])) * pw2(rescaling / (2*dx));
+              grad = .5 * pow(a, -2*(rescale_s+1)) * grad_sq;
 
 	      energy_tot = kin + pot + grad;
 #endif
@@ -1216,7 +1236,10 @@ inline void slices()
           	      kin = .5*vard - rescale_r*(ad/a)*ffd + .5*pw2(rescale_r)*pw2(ad/a)*var; // LSR -- Kinetic energy terms
           	      field_value = &(f[fld][x+1][y][z]);
                       pot = potential_energy(0,field_value);
-          	      grad = .5 * pow(a, -2*(rescale_s+1)) * pw2(laplb(fld,x+1,y,z) / pw2(dx)); // LSR -- Gradient energy terms
+                      grad_sq = (pw2(f[fld][x+1][y][INCREMENT(z)] - f[fld][x+1][y][DECREMENT(z)])
+                      		 +pw2(f[fld][x+1][INCREMENT(y)][z] - f[fld][x+1][DECREMENT(y)][z])
+                      		 +pw2(f[fld][INCREMENT(x+1)][y][z] - f[fld][DECREMENT(x+1)][y][z])) * pw2(rescaling / (2*dx));
+          	      grad = .5 * pow(a, -2*(rescale_s+1)) * grad_sq; // LSR -- Gradient energy terms
 
 		      energy_tot += kin + pot + grad;
 #endif
@@ -1234,14 +1257,17 @@ inline void slices()
 #if NDIMS==3 // This code should only be reached when NDIMS=3, but the compiler would complain without this line
 		value = f[fld][i+1][j][k]; // The +1 adjusts for the offset in the first dimension
 		valuep = fd[fld][i+1][j][k]; // LSR
-		var = pw2(f[fld][i+1][j][k]); // LSR -- Square of field value
-          	vard = pw2(fd[fld][i+1][j][k]); // LSR -- Square of field derivative
-          	ffd = f[fld][i+1][j][k]*fd[fld][i+1][j][k]; // LSR -- Product of field and derivative
+		var = pw2(f[fld][i+1][j][k]*rescaling); // LSR -- Square of field value
+          	vard = pw2(fd[fld][i+1][j][k]*rescaling); // LSR -- Square of field derivative
+          	ffd = f[fld][i+1][j][k]*fd[fld][i+1][j][k]*pw2(rescaling); // LSR -- Product of field and derivative
           
           	kin = .5*vard - rescale_r*(ad/a)*ffd + .5*pw2(rescale_r)*pw2(ad/a)*var; // LSR -- Kinetic energy terms
           	field_value = &(f[fld][i+1][j][k]);
                 pot = potential_energy(0,field_value);
-          	grad = .5 * pow(a, -2*(rescale_s+1)) * pw2(laplb(fld,i+1,j,k) / pw2(dx)); // LSR -- Gradient energy terms
+                grad_sq = (pw2(f[fld][i+1][j][INCREMENT(k)] - f[fld][i+1][j][DECREMENT(k)])
+                	   +pw2(f[fld][i+1][INCREMENT(j)][k] - f[fld][i+1][DECREMENT(j)][k])
+                	   +pw2(f[fld][INCREMENT(i+1)][j][k] - f[fld][DECREMENT(i+1)][j][k])) * pw2(rescaling / (2*dx));
+          	grad = .5 * pow(a, -2*(rescale_s+1)) * grad_sq; // LSR -- Gradient energy terms
 
 		energy_tot = kin + pot + grad;
 #endif

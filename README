@@ -1,3 +1,7 @@
 # ClusterEasy_FFTW3
 
 This is a simple port of [ClusterEasy](https://www.felderbooks.com/latticeeasy/index.html) from FFTW2 to FFTW3. 
+
+The ability for Clustereasy to output the energy density at each point in the lattice has been added. Add
+"const int senergydensity=1; // LSR -- Set to 1 to output energy density values across the grid"
+to parameters.h when creating a new model file. 
