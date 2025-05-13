@@ -1116,7 +1116,8 @@ inline void slices()
 	    if(sliceaverage==1) // Average over all "skipped" points
 	    {
 	      value=0.;
-	      valuep=0.;
+	      valuep=0.; // LSR
+	      energy_tot=0.; // LSR -- Energy value
 	      numpts=0;
 	      for(y=j;y<j+sliceskip && y<N;y++)
 		for(z=k;z<k+sliceskip && z<N;z++)
